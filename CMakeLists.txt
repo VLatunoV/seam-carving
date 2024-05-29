@@ -27,5 +27,18 @@ target_link_libraries(imgui PUBLIC glfw)
 project(seam-carving)
 set(CMAKE_CONFIGURATION_TYPES Debug Release)
 
-set(SOURCES main.cpp)
+find_package(OpenGL REQUIRED)
+if (NOT DEFINED OPENGL_FOUND OR NOT ${OPENGL_FOUND})
+	message(FATAL_ERROR "Could not find OpenGL on the system!")
+endif()
+
+file(GLOB SOURCES
+	${CMAKE_SOURCE_DIR}/src/*.cpp
+	${CMAKE_SOURCE_DIR}/src/*.h
+)
 add_executable(seam ${SOURCES})
+target_include_directories(seam PUBLIC ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(seam PUBLIC
+	imgui
+	OpenGL::GL
+)
