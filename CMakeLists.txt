@@ -20,7 +20,7 @@ set(GLFW_INSTALL CACHE BOOL OFF)
 add_subdirectory(glfw)
 
 # Setup IMGUI
-set(IMGUI_DIR ${CMAKE_SOURCE_DIR}/imgui)
+set(IMGUI_DIR imgui)
 file(GLOB IMGUI_SOURCES
 	${IMGUI_DIR}/*.cpp
 	${IMGUI_DIR}/backends/imgui_impl_glfw.cpp
@@ -40,19 +40,22 @@ else()
 	set(ARCH "x64")
 endif()
 add_library(free_image SHARED IMPORTED)
-set(FREE_IMAGE_FILE_DIR "${CMAKE_SOURCE_DIR}/bin/FreeImage/${ARCH}")
+set(FREE_IMAGE_FILE_DIR "${CMAKE_SOURCE_DIR}/FreeImage/bin/${ARCH}")
 set_target_properties(free_image PROPERTIES
-	IMPORTED_IMPLIB "${FREE_IMAGE_FILE_DIR}/FreeImage.lib"
-	IMPORTED_LOCATION "${FREE_IMAGE_FILE_DIR}/FreeImage.dll"
+	IMPORTED_IMPLIB ${FREE_IMAGE_FILE_DIR}/FreeImage.lib
+	IMPORTED_LOCATION ${FREE_IMAGE_FILE_DIR}/FreeImage.dll
 )
 
 # Application sources
 file(GLOB SOURCES
-	${CMAKE_SOURCE_DIR}/src/*.cpp
-	${CMAKE_SOURCE_DIR}/src/*.h
+	src/*.cpp
+	src/*.h
 )
 add_executable(seam ${SOURCES})
-target_include_directories(seam PUBLIC ${CMAKE_SOURCE_DIR}/src)
+target_include_directories(seam PUBLIC
+	src
+	FreeImage/include
+)
 target_link_libraries(seam PUBLIC
 	imgui
 	OpenGL::GL
