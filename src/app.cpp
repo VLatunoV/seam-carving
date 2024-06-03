@@ -10,6 +10,32 @@ static void glfw_errorCallback(int error, const char* description) {
 	fprintf(stderr, "GLFW error [%d]: %s\n", error, description);
 }
 
+static void glfw_dropFuncCapture(GLFWwindow* window, int path_count, const char* paths[]) {
+	ImageManager& imgMan = CallbackBridge::getInstance().getApp()->imageManager;
+	int fileAccepted = -1;
+	for (int i=0; i<path_count; ++i) {
+		if (imgMan.accepts(paths[i])) {
+			fileAccepted = i;
+			break;
+		}
+	}
+
+	if (fileAccepted == -1) {
+		if (path_count == 1) {
+			printf("Cannot load file \"%s\"\n", paths[0]);
+		} else {
+			printf("Cannot load any file of:\n");
+			for (int i=0; i<path_count; ++i) {
+				printf("  %s\n", paths[i]);
+			}
+		}
+		return;
+	}
+
+	printf("Loading image \"%s\"\n", paths[fileAccepted]);
+	imgMan.triggerLoad(paths[fileAccepted]);
+}
+
 // ################################################################################################################################
 // # ComponentGLFW
 // ################################################################################################################################
@@ -26,6 +52,8 @@ bool ComponentGLFW::initialize() {
 		return false;
 	glfwMakeContextCurrent(window);
 	glfwSwapInterval(1); // Enable vsync
+
+	glfwSetDropCallback(window, glfw_dropFuncCapture);
 
 	printVersion();
 	return initialized;
@@ -109,10 +137,18 @@ void ComponentImGui::cleanup() {
 }
 
 // ################################################################################################################################
+// # CallbackBridge
+// ################################################################################################################################
+
+CallbackBridge CallbackBridge::instance;
+
+// ################################################################################################################################
 // # App
 // ################################################################################################################################
 
 App::App() {
+	CallbackBridge::getInstance().setApp(*this);
+
 	initialized = true;
 	if (initialized) initialized = glfw.initialize();
 	if (initialized) initialized = imgui.initialize(glfw.window);

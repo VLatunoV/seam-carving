@@ -1,4 +1,5 @@
 #pragma once
+#include "image.h"
 
 struct GLFWwindow;
 
@@ -28,18 +29,49 @@ class ComponentImGui {
 	/// @param[in] window The glfw window handle.
 	/// @return True if successful.
 	bool initialize(GLFWwindow* window);
+
+	///< Does cleanup.
 	void cleanup();
 
 	bool initialized = false; ///< True if ImGUI was successfully initialized.
 };
 
+/// Makes the connection between callbacks and the Application. Singleton class.
+/// This is used because GLFW callbacks pass only an opaque window pointer, so it is not possible to get
+/// any reference to any object using them. So this class will create one static global instance, which
+/// creates the bridge between the callback and the application.
+class CallbackBridge {
+	friend class App;
+
+public:
+	/// Return the singleton instance.
+	static CallbackBridge& getInstance() {
+		return instance;
+	}
+
+	/// Return the app instance. Should always be non-null.
+	App* getApp() {
+		return app;
+	}
+
+private:
+	static CallbackBridge instance; ///< The singleton instance.
+	App* app = nullptr; ///< App reference.
+
+	/// Set the app pointer. Must be called before any callbacks are registered.
+	void setApp(App& app) {
+		this->app = &app;
+	}
+};
+
 class App {
 public:
+	ImageManager imageManager;
+
 	App(); ///< Initializes the app.
 	~App(); ///< Does cleanup.
 
-			/// Run the app.
-	void run();
+	void run(); ///< Run the app.
 
 private:
 	bool initialized = false; ///< True if everything was successfully initialized.
