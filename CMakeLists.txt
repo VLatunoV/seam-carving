@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0...3.29)
+cmake_minimum_required(VERSION 3.21)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -58,32 +58,23 @@ target_link_libraries(seam PUBLIC
 	OpenGL::GL
 	free_image
 )
+add_custom_command(TARGET seam POST_BUILD
+	COMMAND ${CMAKE_COMMAND} -E copy_if_different
+	"$<TARGET_RUNTIME_DLLS:seam>" # Files
+	"$<TARGET_FILE_DIR:seam>" # Directory
+	COMMENT "Copying dlls to build directory..."
+	VERBATIM
+)
+
 
 # Set custom default path for installation
 if (CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
 	set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/install" CACHE PATH "" FORCE)
 endif()
 
-# Install the application and dependencies
-function(install_app)
-	set(SINGLES CONFIGURATIONS)
-	cmake_parse_arguments(APP
-		"" # Options
-		${SINGLES}
-		"" # Multi-values
-		${ARGN}
-	)
-	install(
-		TARGETS seam
-		CONFIGURATIONS ${APP_CONFIGURATIONS}
-		DESTINATION ${APP_CONFIGURATIONS}
-	)
-	install(
-		FILES "${FREE_IMAGE_FILE_DIR}/FreeImage.dll"
-		CONFIGURATIONS ${APP_CONFIGURATIONS}
-		DESTINATION ${APP_CONFIGURATIONS}
-	)
-endfunction()
-
-install_app(CONFIGURATIONS Debug)
-install_app(CONFIGURATIONS Release)
+install(TARGETS seam
+	DESTINATION $<CONFIG>/bin
+)
+install(FILES "$<TARGET_RUNTIME_DLLS:seam>"
+	DESTINATION $<CONFIG>/bin
+)
