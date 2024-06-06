@@ -28,26 +28,11 @@ static FREE_IMAGE_FORMAT getImageFormat(const char* path) {
 // # Image
 // ################################################################################################################################
 
-struct ImageDeleter {
-	void operator()(FIBITMAP* ptr) {
-		FreeImage_Unload(ptr);
-	}
-};
+Image::operator bool() {
+	return isValid();
+}
 
-/// Implementation of the @ref Image interface.
-class ImageImpl: public Image {
-	using ManagedFIB = std::unique_ptr<FIBITMAP, ImageDeleter>;
-
-public:
-	virtual Error load(const char* path) override;
-
-private:
-	ManagedFIB dataPtr; ///< Opaque pointer to the internal data.
-
-	void clear();
-};
-
-Error ImageImpl::load(const char* path) {
+Error Image::load(const char* path) {
 	FREE_IMAGE_FORMAT imgFormat = getImageFormat(path);
 	const int imgFlags = getImageLoadFlags(imgFormat);
 	FIBITMAP* fib = FreeImage_Load(imgFormat, path, imgFlags);
@@ -55,43 +40,52 @@ Error ImageImpl::load(const char* path) {
 		return Error("Failed to load image");
 	}
 
-	dataPtr.reset(fib);
+	// We want to pass 24 bit RGB values to OpenGL
+	if (FreeImage_GetBPP(fib) != 8) {
+		FIBITMAP* newImage = FreeImage_ConvertTo8Bits(fib);
+		FreeImage_Unload(fib);
+		fib = newImage;
+		if (!fib || FreeImage_GetBPP(fib) != 8) {
+			return Error("Failed to convert image to 8bit RGB");
+		}
+	}
+
+	// Copy the image data to our internal memory.
+	width = FreeImage_GetWidth(fib);
+	height = FreeImage_GetHeight(fib);
+
+	const size_t destRowSize = size_t(width) * sizeof(data[0]) * 3;
+	data = std::make_unique<uint8_t[]>(size_t(height) * destRowSize);
+
+	for (int row = 0; row < height; ++row) {
+		// FreeImage stores the bottom of the image first (upside-down)
+		BYTE* src = FreeImage_GetScanLine(fib, height - 1 - row);
+		uint8_t* dst = data.get() + destRowSize*(row);
+		memcpy(dst, src, destRowSize);
+	}
 
 	return Error();
 }
 
-void ImageImpl::clear() {
-	dataPtr.reset();
+int Image::getWidth() const {
+	return width;
+}
+
+int Image::getHeight() const {
+	return height;
+}
+
+const uint8_t* Image::getData() {
+	return data.get();
+}
+
+bool Image::isValid() const {
+	return (width > 0) && (height > 0) && data;
 }
 
 // ################################################################################################################################
 // # ImageManager
 // ################################################################################################################################
-
-/// From the docs...
-/// Generic image loader
-/// @param lpszPathName Pointer to the full file name
-/// @param flag Optional load flag constant
-/// @return Returns the loaded dib if successful, returns NULL otherwise
-static FIBITMAP* GenericLoader(const char* lpszPathName, int flag) {
-	FREE_IMAGE_FORMAT fif = FIF_UNKNOWN;
-	// check the file signature and deduce its format
-	// (the second argument is currently not used by FreeImage)
-	fif = FreeImage_GetFileType(lpszPathName, 0);
-	if(fif == FIF_UNKNOWN) {
-		// no signature ?
-		// try to guess the file format from the file extension
-		fif = FreeImage_GetFIFFromFilename(lpszPathName);
-	}
-	// check that the plugin has reading capabilities ...
-	if((fif != FIF_UNKNOWN) && FreeImage_FIFSupportsReading(fif)) {
-		// ok, let's load the file
-		FIBITMAP *dib = FreeImage_Load(fif, lpszPathName, flag);
-		// unless a bad file format, we are done !
-		return dib;
-	}
-	return NULL;
-}
 
 bool ImageManager::accepts(const char* path) {
 	FREE_IMAGE_FORMAT imgFormat = getImageFormat(path);
@@ -100,9 +94,16 @@ bool ImageManager::accepts(const char* path) {
 
 void ImageManager::triggerLoad(const char* path) {
 	if (loadingImage) return;
+	if (nextImage == nullptr) {
+		nextImage = std::make_unique<Image>();
+	}
 
 	loadingImage = true;
 	Error err = nextImage->load(path);
+	currentImage = std::exchange(nextImage, nullptr);
 	loadingImage = false;
 }
 
+Image* ImageManager::getCurrentImage() {
+	return currentImage.get();
+}
