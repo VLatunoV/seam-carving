@@ -43,9 +43,13 @@ public:
 	/// Return the current image to use. Can be nullptr if it wasn't loaded yet.
 	Image* getCurrentImage();
 
+	/// Returns true if the current image is updated.
+	bool hasNewImage() const;
+
 private:
 	std::unique_ptr<Image> currentImage; ///< The image to show.
 	std::unique_ptr<Image> nextImage; ///< The image that we load.
 
-	bool loadingImage = false; ///< Set to true when we start loading an image.
+	/// Set to true when we change the currentImage. When @p getCurrentImage() is called, we clear it.
+	bool imageUpdated = false;
 };

@@ -41,11 +41,11 @@ Error Image::load(const char* path) {
 	}
 
 	// We want to pass 24 bit RGB values to OpenGL
-	if (FreeImage_GetBPP(fib) != 8) {
-		FIBITMAP* newImage = FreeImage_ConvertTo8Bits(fib);
+	if (FreeImage_GetBPP(fib) != 24) {
+		FIBITMAP* newImage = FreeImage_ConvertTo24Bits(fib);
 		FreeImage_Unload(fib);
 		fib = newImage;
-		if (!fib || FreeImage_GetBPP(fib) != 8) {
+		if (!fib || FreeImage_GetBPP(fib) != 24) {
 			return Error("Failed to convert image to 8bit RGB");
 		}
 	}
@@ -54,16 +54,23 @@ Error Image::load(const char* path) {
 	width = FreeImage_GetWidth(fib);
 	height = FreeImage_GetHeight(fib);
 
-	const size_t destRowSize = size_t(width) * sizeof(data[0]) * 3;
-	data = std::make_unique<uint8_t[]>(size_t(height) * destRowSize);
+	const size_t srcRowSize = FreeImage_GetLine(fib);
+	data = std::make_unique<uint8_t[]>(size_t(height) * srcRowSize);
 
 	for (int row = 0; row < height; ++row) {
 		// FreeImage stores the bottom of the image first (upside-down)
-		BYTE* src = FreeImage_GetScanLine(fib, height - 1 - row);
-		uint8_t* dst = data.get() + destRowSize*(row);
-		memcpy(dst, src, destRowSize);
+		RGBTRIPLE* src = reinterpret_cast<RGBTRIPLE*>(FreeImage_GetScanLine(fib, height - 1 - row));
+		uint8_t* dst = data.get() + srcRowSize * size_t(row);
+		for (int col = 0; col < width; ++col) {
+			dst[0] = src->rgbtRed;
+			dst[1] = src->rgbtGreen;
+			dst[2] = src->rgbtBlue;
+			src += 1;
+			dst += 3;
+		}
 	}
 
+	FreeImage_Unload(fib);
 	return Error();
 }
 
@@ -93,17 +100,20 @@ bool ImageManager::accepts(const char* path) {
 }
 
 void ImageManager::triggerLoad(const char* path) {
-	if (loadingImage) return;
 	if (nextImage == nullptr) {
 		nextImage = std::make_unique<Image>();
 	}
 
-	loadingImage = true;
 	Error err = nextImage->load(path);
 	currentImage = std::exchange(nextImage, nullptr);
-	loadingImage = false;
+	imageUpdated = true;
 }
 
 Image* ImageManager::getCurrentImage() {
+	imageUpdated = false;
 	return currentImage.get();
+}
+
+bool ImageManager::hasNewImage() const {
+	return imageUpdated;
 }

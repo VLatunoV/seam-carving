@@ -1,4 +1,5 @@
 #pragma once
+#include "canvas.h"
 #include "image.h"
 
 struct GLFWwindow;
@@ -67,6 +68,7 @@ private:
 class App {
 public:
 	ImageManager imageManager;
+	Canvas canvas;
 
 	App(); ///< Initializes the app.
 	~App(); ///< Does cleanup.
@@ -77,4 +79,13 @@ private:
 	bool initialized = false; ///< True if everything was successfully initialized.
 	ComponentGLFW glfw;
 	ComponentImGui imgui;
+
+	int displayWidth = 0; ///< Window client width.
+	int displayHeight = 0; ///< Window client height.
+
+	/// Called before the main loop. Used to initialize, load, etc.
+	void setup();
+
+	/// Called on every frame before rendering.
+	void updateState();
 };

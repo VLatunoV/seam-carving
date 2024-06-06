@@ -1,6 +1,6 @@
-#include "app.h"
 #include <stdio.h>
 
+#include "app.h"
 #include "GLFW/glfw3.h"
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
@@ -146,7 +146,9 @@ CallbackBridge CallbackBridge::instance;
 // # App
 // ################################################################################################################################
 
-App::App() {
+App::App()
+	: canvas(imageManager)
+{
 	CallbackBridge::getInstance().setApp(*this);
 
 	initialized = true;
@@ -163,16 +165,19 @@ void App::run() {
 	if (!initialized) return;
 
 	// Do some setup
+	setup();
 	bool show_demo_window = true;
 	bool show_another_window = false;
 	ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 	ImGuiIO& io = ImGui::GetIO();
-	io.IniFilename = nullptr;
 
 	// Main loop
 	while (!glfwWindowShouldClose(glfw.window)) {
 		// Poll and handle events (inputs, window resize, etc.)
 		glfwPollEvents();
+
+		// Update state based on user input
+		updateState();
 
 		// Start the Dear ImGui frame
 		ImGui_ImplOpenGL3_NewFrame();
@@ -203,6 +208,7 @@ void App::run() {
 			ImGui::Text("counter = %d", counter);
 
 			ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+			ImGui::Text("Window size: %d x %d", displayWidth, displayHeight);
 			ImGui::End();
 		}
 
@@ -218,13 +224,27 @@ void App::run() {
 
 		// Rendering
 		ImGui::Render();
-		int display_w, display_h;
-		glfwGetFramebufferSize(glfw.window, &display_w, &display_h);
-		glViewport(0, 0, display_w, display_h);
 		glClearColor(clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w, clear_color.w);
 		glClear(GL_COLOR_BUFFER_BIT);
+
+		canvas.draw();
+
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
 		glfwSwapBuffers(glfw.window);
+	}
+}
+
+void App::setup() {
+	ImGuiIO& io = ImGui::GetIO();
+	io.IniFilename = nullptr;
+}
+
+void App::updateState() {
+	glfwGetFramebufferSize(glfw.window, &displayWidth, &displayHeight);
+	canvas.updateCanvasSize(displayWidth, displayHeight);
+
+	if (imageManager.hasNewImage()) {
+		canvas.makeTexture();
 	}
 }

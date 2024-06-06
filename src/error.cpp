@@ -1,6 +1,7 @@
-#include "error.h"
 #include <stdio.h>
 #include <stdarg.h>
+
+#include "error.h"
 
 // Macro defining the procedure to get the variable args and produce the output string.
 // @param __fmt The name of the variable before the '...' in the calling function.
