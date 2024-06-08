@@ -1,5 +1,5 @@
-#include "image.h"
 #include "FreeImage.h"
+#include "image.h"
 
 /// Get load flags for a given image format.
 static int getImageLoadFlags(FREE_IMAGE_FORMAT imgFormat) {
