@@ -8,6 +8,14 @@ Canvas::Canvas(ImageManager& _imgManager)
 	: imgManager(_imgManager)
 {}
 
+void Canvas::pan(int xoffset, int yoffset) {
+
+}
+
+void Canvas::zoom(int value) {
+
+}
+
 void Canvas::updateCanvasSize(int _width, int _height) {
 	if (width == _width && height == _height) {
 		return;

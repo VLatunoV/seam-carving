@@ -13,6 +13,9 @@ public:
 	void makeTexture();
 	void draw();
 
+	void pan(int xoffset, int yoffset);
+	void zoom(int value);
+
 private:
 	ImageManager& imgManager; ///< Image manager to get the image.
 	unsigned int textureID = 0; ///< OpenGL texture id.

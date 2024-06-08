@@ -65,10 +65,19 @@ private:
 	}
 };
 
+/// The mouse state on the previous frame.
+struct MouseState {
+	int px = 0; ///< Current mouse position.
+	int py = 0; ///< Current mouse position.
+	bool mmbPressed = false; ///< Middle mouse buttom pressed?
+};
+
 class App {
 public:
 	ImageManager imageManager;
 	Canvas canvas;
+
+	MouseState mouse;
 
 	App(); ///< Initializes the app.
 	~App(); ///< Does cleanup.

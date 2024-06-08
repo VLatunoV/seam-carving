@@ -36,6 +36,33 @@ static void glfw_dropFuncCapture(GLFWwindow* window, int path_count, const char*
 	imgMan.triggerLoad(paths[fileAccepted]);
 }
 
+static void glfw_cursorPositionFunction(GLFWwindow* window, double xpos, double ypos) {
+	App* app = CallbackBridge::getInstance().getApp();
+	MouseState& state = app->mouse;
+	const int xOffset = int(xpos) - state.px;
+	const int yOffset = int(ypos) - state.py;
+	state.px += xOffset;
+	state.py += yOffset;
+
+	if (state.mmbPressed) {
+		app->canvas.pan(xOffset, yOffset);
+	}
+}
+
+static void glfw_mouseButtomFunction(GLFWwindow* window, int button, int action, int mods) {
+	MouseState& state = CallbackBridge::getInstance().getApp()->mouse;
+	if (button == GLFW_MOUSE_BUTTON_MIDDLE) {
+		state.mmbPressed = (action == GLFW_PRESS);
+	}
+}
+
+static void glfw_scrollFunction(GLFWwindow* window, double xoffset, double yoffset) {
+	App* app = CallbackBridge::getInstance().getApp();
+	MouseState& state = app->mouse;
+	app->canvas.zoom(int(yoffset));
+}
+
+
 // ################################################################################################################################
 // # ComponentGLFW
 // ################################################################################################################################
@@ -54,6 +81,9 @@ bool ComponentGLFW::initialize() {
 	glfwSwapInterval(1); // Enable vsync
 
 	glfwSetDropCallback(window, glfw_dropFuncCapture);
+	glfwSetCursorPosCallback(window, glfw_cursorPositionFunction);
+	glfwSetMouseButtonCallback(window, glfw_mouseButtomFunction);
+	glfwSetScrollCallback(window, glfw_scrollFunction);
 
 	printVersion();
 	return initialized;
