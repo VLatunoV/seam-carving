@@ -205,12 +205,13 @@ void App::run() {
 	if (!initialized) return;
 
 	// Do some setup
-	setup();
-	bool show_demo_window = true;
-	float clearColor[3] = {0.45f, 0.55f, 0.60f};
 	ImGuiIO& io = ImGui::GetIO();
+	float clearColor[3] = {0.45f, 0.55f, 0.60f};
+	bool show_demo_window = false;
 	float emaDeltaTime = 1.0f / 60.0f;
 	const float emaDecay = 0.95f;
+
+	io.IniFilename = nullptr;
 
 	// Main loop
 	while (!glfwWindowShouldClose(glfw.window)) {
@@ -221,8 +222,8 @@ void App::run() {
 		updateState();
 		emaDeltaTime = emaDecay * emaDeltaTime + (1.0f-emaDecay) * io.DeltaTime;
 
+		// Draw ImGui UI
 		{
-			// Start the Dear ImGui frame
 			ImGui_ImplOpenGL3_NewFrame();
 			ImGui_ImplGlfw_NewFrame();
 			ImGui::NewFrame();
@@ -238,7 +239,7 @@ void App::run() {
 			ImGui::Text("Press SPACE to reset.");
 			ImGui::Checkbox("Demo window", &show_demo_window);
 
-			ImGui::SliderInt("Zoom speed", &canvas.zoomSpeed, 1, 9, "%d", ImGuiSliderFlags_NoInput);
+			ImGui::SliderInt("Zoom speed", &canvas.zoomSpeed, 1, 9, nullptr, ImGuiSliderFlags_NoInput);
 			ImGui::ColorEdit3("Background color", clearColor);
 
 			ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f * emaDeltaTime, 1.0f / emaDeltaTime);
@@ -258,11 +259,6 @@ void App::run() {
 
 		glfwSwapBuffers(glfw.window);
 	}
-}
-
-void App::setup() {
-	ImGuiIO& io = ImGui::GetIO();
-	io.IniFilename = nullptr;
 }
 
 void App::updateState() {

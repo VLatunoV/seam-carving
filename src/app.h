@@ -92,9 +92,6 @@ private:
 	int displayWidth = 0; ///< Window client width.
 	int displayHeight = 0; ///< Window client height.
 
-	/// Called before the main loop. Used to initialize, load, etc.
-	void setup();
-
 	/// Called on every frame before rendering.
 	void updateState();
 };
