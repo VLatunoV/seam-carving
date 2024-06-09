@@ -54,7 +54,12 @@ void Canvas::pan(int xoffset, int yoffset) {
 }
 
 void Canvas::zoom(int scroll, int mouseX, int mouseY) {
-	const int value = scroll * zoomSpeed;
+	int value = scroll * zoomSpeed;
+	const float nextZoom = calcScale(zoomValue+value);
+	if (nextZoom < 0.05f || nextZoom > 1025.0f) {
+		return;
+	}
+
 	const float scaleDelta = calcScale(value);
 	float mOffsetX = float(mouseX - width/2);
 	float mOffsetY = float(mouseY - height/2);

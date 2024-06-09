@@ -7,6 +7,8 @@ class ImageManager;
 class Canvas
 	: public ImageManagerObserver
 {
+	friend class App;
+
 public:
 	Canvas(ImageManager& imgManager);
 
