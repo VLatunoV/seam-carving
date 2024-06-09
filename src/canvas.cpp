@@ -8,12 +8,48 @@ Canvas::Canvas(ImageManager& _imgManager)
 	: imgManager(_imgManager)
 {}
 
+void Canvas::update(int _width, int _height) {
+	updateCanvasSize(_width, _height);
+
+	if (imageUpdated) {
+		makeTexture();
+		imageUpdated = false;
+	}
+}
+
+void Canvas::draw() {
+	if (textureID == 0) {
+		return;
+	}
+
+	glViewport(0, 0, width, height);
+	glMatrixMode(GL_PROJECTION);
+	glLoadIdentity();
+	glOrtho(0, width, height, 0, 0, 1);
+	glEnable(GL_TEXTURE_2D);
+	glBindTexture(GL_TEXTURE_2D, textureID);
+	glBegin(GL_QUADS);
+	glTexCoord2f(0.0f, 0.0f); glVertex2i(0, 0);
+	glTexCoord2f(1.0f, 0.0f); glVertex2i(geomWidth, 0);
+	glTexCoord2f(1.0f, 1.0f); glVertex2i(geomWidth, geomHeight);
+	glTexCoord2f(0.0f, 1.0f); glVertex2i(0, geomHeight);
+	glEnd();
+}
+
 void Canvas::pan(int xoffset, int yoffset) {
 
 }
 
 void Canvas::zoom(int value) {
 
+}
+
+void Canvas::onImageChange() {
+	Image* image = imgManager.getCurrentImage();
+	const int imgW = image->getWidth();
+	const int imgH = image->getHeight();
+	updateImageGeometry(imgW, imgH);
+	imageUpdated = true;
 }
 
 void Canvas::updateCanvasSize(int _width, int _height) {
@@ -23,12 +59,30 @@ void Canvas::updateCanvasSize(int _width, int _height) {
 
 	width = _width;
 	height = _height;
+	Image* image = imgManager.getCurrentImage();
+	if (!image || !image->isValid()) {
+		return;
+	}
+
+	const int imgW = image->getWidth();
+	const int imgH = image->getHeight();
+	updateImageGeometry(imgW, imgH);
+}
+
+void Canvas::updateImageGeometry(int imgW, int imgH) {
+	double aspect = double(imgW) / double(imgH);
+	if (int64_t(width) * imgH > int64_t(height) * imgW) {
+		// Canvas size is wider than the image.
+		geomHeight = height;
+		geomWidth = int(aspect * double(height) + 0.5);
+	} else {
+		// Canvas is taller than the image.
+		geomWidth = width;
+		geomHeight = int(double(width) / aspect + 0.5);
+	}
 }
 
 void Canvas::makeTexture() {
-	if (!imgManager.hasNewImage()) {
-		return;
-	}
 	Image* image = imgManager.getCurrentImage();
 	if (!image || !image->isValid()) {
 		return;
@@ -53,23 +107,4 @@ void Canvas::makeTexture() {
 		image->getData()
 	);
 	glBindTexture(GL_TEXTURE_2D, 0);
-}
-
-void Canvas::draw() {
-	if (textureID == 0) {
-		return;
-	}
-
-	glViewport(0, 0, width, height);
-	glMatrixMode(GL_PROJECTION);
-	glLoadIdentity();
-	glOrtho(0, width, height, 0, 0, 1);
-	glEnable(GL_TEXTURE_2D);
-	glBindTexture(GL_TEXTURE_2D, textureID);
-	glBegin(GL_QUADS);
-	glTexCoord2f(0.0f, 0.0f); glVertex2i(0, 0);
-	glTexCoord2f(1.0f, 0.0f); glVertex2i(width, 0);
-	glTexCoord2f(1.0f, 1.0f); glVertex2i(width, height);
-	glTexCoord2f(0.0f, 1.0f); glVertex2i(0, height);
-	glEnd();
 }

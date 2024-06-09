@@ -106,14 +106,9 @@ void ImageManager::triggerLoad(const char* path) {
 
 	Error err = nextImage->load(path);
 	currentImage = std::exchange(nextImage, nullptr);
-	imageUpdated = true;
+	notify(&ImageManagerObserver::onImageChange);
 }
 
 Image* ImageManager::getCurrentImage() {
-	imageUpdated = false;
 	return currentImage.get();
-}
-
-bool ImageManager::hasNewImage() const {
-	return imageUpdated;
 }

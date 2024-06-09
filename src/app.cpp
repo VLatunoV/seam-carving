@@ -179,14 +179,17 @@ CallbackBridge CallbackBridge::instance;
 App::App()
 	: canvas(imageManager)
 {
-	CallbackBridge::getInstance().setApp(*this);
-
 	initialized = true;
 	if (initialized) initialized = glfw.initialize();
 	if (initialized) initialized = imgui.initialize(glfw.window);
+
+	CallbackBridge::getInstance().setApp(*this);
+	imageManager.registerObserver(canvas);
 }
 
 App::~App() {
+	imageManager.unregisterObserver(canvas);
+
 	imgui.cleanup();
 	glfw.cleanup();
 }
@@ -272,9 +275,5 @@ void App::setup() {
 
 void App::updateState() {
 	glfwGetFramebufferSize(glfw.window, &displayWidth, &displayHeight);
-	canvas.updateCanvasSize(displayWidth, displayHeight);
-
-	if (imageManager.hasNewImage()) {
-		canvas.makeTexture();
-	}
+	canvas.update(displayWidth, displayHeight);
 }

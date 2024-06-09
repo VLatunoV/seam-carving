@@ -2,6 +2,7 @@
 #include <memory>
 
 #include "error.h"
+#include "observer.h"
 
 class Image {
 public:
@@ -30,7 +31,9 @@ private:
 	std::unique_ptr<uint8_t[]> data;
 };
 
-class ImageManager {
+class ImageManager
+	: public Observable<ImageManagerObserver>
+{
 public:
 	/// Check if the file is an image that we can load.
 	/// @param path The file path.
@@ -43,13 +46,7 @@ public:
 	/// Return the current image to use. Can be nullptr if it wasn't loaded yet.
 	Image* getCurrentImage();
 
-	/// Returns true if the current image is updated.
-	bool hasNewImage() const;
-
 private:
 	std::unique_ptr<Image> currentImage; ///< The image to show.
 	std::unique_ptr<Image> nextImage; ///< The image that we load.
-
-	/// Set to true when we change the currentImage. When @p getCurrentImage() is called, we clear it.
-	bool imageUpdated = false;
 };
