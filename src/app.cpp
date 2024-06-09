@@ -38,30 +38,36 @@ static void glfw_dropFuncCapture(GLFWwindow* window, int path_count, const char*
 
 static void glfw_cursorPositionFunction(GLFWwindow* window, double xpos, double ypos) {
 	App* app = CallbackBridge::getInstance().getApp();
-	MouseState& state = app->mouse;
-	const int xOffset = int(xpos) - state.px;
-	const int yOffset = int(ypos) - state.py;
-	state.px += xOffset;
-	state.py += yOffset;
+	MouseState& mouse = app->mouse;
+	const int xOffset = int(xpos) - mouse.px;
+	const int yOffset = int(ypos) - mouse.py;
+	mouse.px += xOffset;
+	mouse.py += yOffset;
 
-	if (state.mmbPressed) {
+	if (mouse.mmbPressed) {
 		app->canvas.pan(xOffset, yOffset);
 	}
 }
 
 static void glfw_mouseButtomFunction(GLFWwindow* window, int button, int action, int mods) {
-	MouseState& state = CallbackBridge::getInstance().getApp()->mouse;
+	MouseState& mouse = CallbackBridge::getInstance().getApp()->mouse;
 	if (button == GLFW_MOUSE_BUTTON_MIDDLE) {
-		state.mmbPressed = (action == GLFW_PRESS);
+		mouse.mmbPressed = (action == GLFW_PRESS);
 	}
 }
 
 static void glfw_scrollFunction(GLFWwindow* window, double xoffset, double yoffset) {
 	App* app = CallbackBridge::getInstance().getApp();
-	MouseState& state = app->mouse;
-	app->canvas.zoom(int(yoffset));
+	MouseState& mouse = app->mouse;
+	app->canvas.zoom(int(yoffset), mouse.px, mouse.py);
 }
 
+static void glfw_keyboardFunction(GLFWwindow* window, int key, int scancode, int action, int mods) {
+	if (key == GLFW_KEY_SPACE && action == GLFW_PRESS) {
+		App* app = CallbackBridge::getInstance().getApp();
+		app->canvas.resetTransform();
+	}
+}
 
 // ################################################################################################################################
 // # ComponentGLFW
@@ -84,6 +90,7 @@ bool ComponentGLFW::initialize() {
 	glfwSetCursorPosCallback(window, glfw_cursorPositionFunction);
 	glfwSetMouseButtonCallback(window, glfw_mouseButtomFunction);
 	glfwSetScrollCallback(window, glfw_scrollFunction);
+	glfwSetKeyCallback(window, glfw_keyboardFunction);
 
 	printVersion();
 	return initialized;
