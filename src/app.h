@@ -88,10 +88,4 @@ private:
 	bool initialized = false; ///< True if everything was successfully initialized.
 	ComponentGLFW glfw;
 	ComponentImGui imgui;
-
-	int displayWidth = 0; ///< Window client width.
-	int displayHeight = 0; ///< Window client height.
-
-	/// Called on every frame before rendering.
-	void updateState();
 };

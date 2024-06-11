@@ -210,6 +210,10 @@ void App::run() {
 	bool show_demo_window = false;
 	float emaDeltaTime = 1.0f / 60.0f;
 	const float emaDecay = 0.95f;
+	int displayWidth = 0;
+	int displayHeight = 0;
+	int imageWidth = 0;
+	int imageHeight = 0;
 
 	io.IniFilename = nullptr;
 
@@ -219,7 +223,13 @@ void App::run() {
 		glfwPollEvents();
 
 		// Update state based on user input
-		updateState();
+		glfwGetFramebufferSize(glfw.window, &displayWidth, &displayHeight);
+		canvas.update(displayWidth, displayHeight);
+		Image* currImage = imageManager.getCurrentImage();
+		if (currImage) {
+			imageWidth = currImage->getWidth();
+			imageHeight = currImage->getHeight();
+		}
 		emaDeltaTime = emaDecay * emaDeltaTime + (1.0f-emaDecay) * io.DeltaTime;
 
 		// Draw ImGui UI
@@ -244,6 +254,7 @@ void App::run() {
 
 			ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f * emaDeltaTime, 1.0f / emaDeltaTime);
 			ImGui::Text("Window size: %d x %d", displayWidth, displayHeight);
+			ImGui::Text("Image size: %d x %d", imageWidth, imageHeight);
 			ImGui::Text("Zoom level: %.03f", canvas.calcScale(canvas.zoomValue));
 			ImGui::End();
 
@@ -259,9 +270,4 @@ void App::run() {
 
 		glfwSwapBuffers(glfw.window);
 	}
-}
-
-void App::updateState() {
-	glfwGetFramebufferSize(glfw.window, &displayWidth, &displayHeight);
-	canvas.update(displayWidth, displayHeight);
 }
