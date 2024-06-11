@@ -24,6 +24,25 @@ static FREE_IMAGE_FORMAT getImageFormat(const char* path) {
 	return fif;
 }
 
+inline static float toLinear(float x) {
+	return (x <= 0.04045f)
+		? (x / 12.92f)
+		: powf((x+0.055f) / 1.055f, 2.4f);
+}
+
+inline static float toSRGB(float x) {
+	return (x <= 0.0031308f)
+		? (x * 12.92f)
+		: 1.055f * powf(x, 1.0f/2.4f) - 0.055f;
+}
+
+inline static float computeLuma(const float& r, const float& g, const float& b) {
+	return
+		0.2126f * toLinear(r) +
+		0.7152f * toLinear(g) +
+		0.0722f * toLinear(b);
+}
+
 // ################################################################################################################################
 // # Image
 // ################################################################################################################################
@@ -71,6 +90,7 @@ Error Image::load(const char* path) {
 	}
 
 	FreeImage_Unload(fib);
+	computeEnergies();
 	return Error();
 }
 
@@ -88,6 +108,54 @@ const uint8_t* Image::getData() {
 
 bool Image::isValid() const {
 	return (width > 0) && (height > 0) && data;
+}
+
+void Image::computeEnergies() {
+	if (!isValid()) return;
+
+	const size_t memSize = size_t(width) * height;
+	energy = std::make_unique<float[]>(memSize);
+
+	std::unique_ptr<float[]> luma = std::make_unique<float[]>(memSize);
+
+	for (int colorIdx=0, intensIdx=0; intensIdx<memSize; colorIdx+=3, intensIdx++) {
+		luma[intensIdx] = computeLuma(
+			float(data[colorIdx]),
+			float(data[colorIdx+1]),
+			float(data[colorIdx+2])
+		);
+	}
+
+	int offset = 0;
+	int iterEnd = 0;
+	// First row
+	energy[offset] = (fabsf(luma[offset+1] - luma[offset]) + fabsf(luma[offset+width] - luma[offset]))*2.0f;
+	++offset;
+	for (iterEnd = offset+width-2; offset < iterEnd; ++offset) {
+		energy[offset] = fabsf(luma[offset+1] - luma[offset-1]) + fabsf(luma[offset+width] - luma[offset])*2.0f;
+	}
+	energy[offset] = (fabsf(luma[offset] - luma[offset-1]) + fabsf(luma[offset+width] - luma[offset]))*2.0f;
+	++offset;
+
+	// Middle rows
+	for (int row = 1; row < height-1; ++row) {
+		energy[offset] = fabsf(luma[offset+1] - luma[offset])*2.0f + fabsf(luma[offset+width] - luma[offset-width]);
+		++offset;
+		for (iterEnd = offset+width-2; offset < iterEnd; ++offset) {
+			energy[offset] = fabsf(luma[offset+1] - luma[offset-1]) + fabsf(luma[offset+width] - luma[offset-width]);
+		}
+		energy[offset] = fabsf(luma[offset] - luma[offset-1])*2.0f + fabsf(luma[offset+width] - luma[offset-width]);
+		++offset;
+	}
+
+	// Last row
+	energy[offset] = (fabsf(luma[offset+1] - luma[offset]) + fabsf(luma[offset] - luma[offset-width]))*2.0f;
+	++offset;
+	for (iterEnd = offset+width-2; offset < iterEnd; ++offset) {
+		energy[offset] = fabsf(luma[offset+1] - luma[offset-1]) + fabsf(luma[offset] - luma[offset-width])*2.0f;
+	}
+	energy[offset] = (fabsf(luma[offset] - luma[offset-1]) + fabsf(luma[offset] - luma[offset-width]))*2.0f;
+	++offset;
 }
 
 // ################################################################################################################################

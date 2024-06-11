@@ -29,6 +29,11 @@ private:
 	int height = 0;
 	/// Holds the image data as 8bit RGB values.
 	std::unique_ptr<uint8_t[]> data;
+	/// Holds the pixel energies used to do seam carving.
+	std::unique_ptr<float[]> energy;
+
+	/// Calculated the energies for the image.
+	void computeEnergies();
 };
 
 class ImageManager
@@ -48,5 +53,5 @@ public:
 
 private:
 	std::unique_ptr<Image> currentImage; ///< The image to show.
-	std::unique_ptr<Image> nextImage; ///< The image that we load.
+	std::unique_ptr<Image> nextImage; ///< The image that we load or seam carve.
 };
