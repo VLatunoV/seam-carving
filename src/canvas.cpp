@@ -141,7 +141,3 @@ void Canvas::makeTexture() {
 	);
 	glBindTexture(GL_TEXTURE_2D, 0);
 }
-
-float Canvas::calcScale(int value) {
-	return powf(2.0f, float(value) * 0.25f);
-}

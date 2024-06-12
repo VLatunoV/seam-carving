@@ -180,3 +180,7 @@ void ImageManager::triggerLoad(const char* path) {
 Image* ImageManager::getCurrentImage() {
 	return currentImage.get();
 }
+
+void ImageManager::triggerSeam(int newWidth, int newHeight) {
+
+}

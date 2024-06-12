@@ -77,5 +77,7 @@ private:
 
 	/// Map the interger zoom value to a real scale.
 	/// @param value Zoom value.
-	inline float calcScale(int value);
+	float calcScale(int value) {
+		return powf(2.0f, float(value) * 0.25f);
+	}
 };

@@ -51,6 +51,8 @@ public:
 	/// Return the current image to use. Can be nullptr if it wasn't loaded yet.
 	Image* getCurrentImage();
 
+	void triggerSeam(int newWidth, int newHeight);
+
 private:
 	std::unique_ptr<Image> currentImage; ///< The image to show.
 	std::unique_ptr<Image> nextImage; ///< The image that we load or seam carve.

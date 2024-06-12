@@ -69,6 +69,17 @@ static void glfw_keyboardFunction(GLFWwindow* window, int key, int scancode, int
 	}
 }
 
+static void tooltip(const char* desc) {
+	ImGui::SameLine();
+	ImGui::TextDisabled("(?)");
+	if (ImGui::BeginItemTooltip()) {
+		ImGui::PushTextWrapPos(ImGui::GetFontSize() * 35.0f);
+		ImGui::TextUnformatted(desc);
+		ImGui::PopTextWrapPos();
+		ImGui::EndTooltip();
+	}
+}
+
 // ################################################################################################################################
 // # ComponentGLFW
 // ################################################################################################################################
@@ -191,10 +202,12 @@ App::App()
 	if (initialized) initialized = imgui.initialize(glfw.window);
 
 	CallbackBridge::getInstance().setApp(*this);
+	imageManager.registerObserver(*this);
 	imageManager.registerObserver(canvas);
 }
 
 App::~App() {
+	imageManager.unregisterObserver(*this);
 	imageManager.unregisterObserver(canvas);
 
 	imgui.cleanup();
@@ -205,16 +218,14 @@ void App::run() {
 	if (!initialized) return;
 
 	// Do some setup
-	ImGuiIO& io = ImGui::GetIO();
 	float clearColor[3] = {0.45f, 0.55f, 0.60f};
 	bool show_demo_window = false;
 	float emaDeltaTime = 1.0f / 60.0f;
 	const float emaDecay = 0.95f;
 	int displayWidth = 0;
 	int displayHeight = 0;
-	int imageWidth = 0;
-	int imageHeight = 0;
 
+	ImGuiIO& io = ImGui::GetIO();
 	io.IniFilename = nullptr;
 
 	// Main loop
@@ -225,11 +236,7 @@ void App::run() {
 		// Update state based on user input
 		glfwGetFramebufferSize(glfw.window, &displayWidth, &displayHeight);
 		canvas.update(displayWidth, displayHeight);
-		Image* currImage = imageManager.getCurrentImage();
-		if (currImage) {
-			imageWidth = currImage->getWidth();
-			imageHeight = currImage->getHeight();
-		}
+
 		emaDeltaTime = emaDecay * emaDeltaTime + (1.0f-emaDecay) * io.DeltaTime;
 
 		// Draw ImGui UI
@@ -242,20 +249,36 @@ void App::run() {
 			if (show_demo_window)
 				ImGui::ShowDemoWindow(&show_demo_window);
 
-			ImGui::Begin("Controls");
+			ImGui::Begin("Seam carving", nullptr, ImGuiWindowFlags_NoResize);
+			ImGui::SetWindowPos({0, 0}, ImGuiCond_Once);
 
+			ImGui::SeparatorText("Controls");
 			ImGui::Text("Drag and drop an image to load.");
 			ImGui::Text("Use middle mouse button to move and scroll to zoom.");
 			ImGui::Text("Press SPACE to reset.");
-			ImGui::Checkbox("Demo window", &show_demo_window);
 
+			ImGui::SeparatorText("Seam carving");
+			ImGui::Text("Target size");
+			tooltip("This is the final size after removing seams from the image.");
+			ImGui::SliderInt("Width", &targetWidth, 0, imageWidth);
+			ImGui::SliderInt("Height", &targetHeight, 0, imageHeight);
+			if (ImGui::Button("Carve")) {
+				imageManager.triggerSeam(targetWidth, targetHeight);
+			}
+
+			ImGui::SeparatorText("Settings");
 			ImGui::SliderInt("Zoom speed", &canvas.zoomSpeed, 1, 9, nullptr, ImGuiSliderFlags_NoInput);
 			ImGui::ColorEdit3("Background color", clearColor);
 
+			ImGui::SeparatorText("Info");
 			ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f * emaDeltaTime, 1.0f / emaDeltaTime);
 			ImGui::Text("Window size: %d x %d", displayWidth, displayHeight);
 			ImGui::Text("Image size: %d x %d", imageWidth, imageHeight);
 			ImGui::Text("Zoom level: %.03f", canvas.calcScale(canvas.zoomValue));
+			ImGui::Checkbox("Demo window", &show_demo_window);
+			if (ImGui::Button("Pop")) {
+				ImGui::SetWindowPos({0, 0});
+			}
 			ImGui::End();
 
 			// Rendering
@@ -270,4 +293,13 @@ void App::run() {
 
 		glfwSwapBuffers(glfw.window);
 	}
+}
+
+void App::onImageChange() {
+	Image* currImage = imageManager.getCurrentImage();
+	imageWidth = currImage->getWidth();
+	imageHeight = currImage->getHeight();
+
+	targetWidth = std::min(targetWidth, imageWidth);
+	targetHeight = std::min(targetHeight, imageHeight);
 }
