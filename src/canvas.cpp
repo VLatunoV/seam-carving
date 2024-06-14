@@ -39,7 +39,7 @@ void Canvas::draw() {
 	glTranslatef(centerX, centerY, 0.0f);
 	glScalef(scaleFactor, scaleFactor, 1.0f);
 	glEnable(GL_TEXTURE_2D);
-	glBindTexture(GL_TEXTURE_2D, textureID);
+	glBindTexture(GL_TEXTURE_2D, showEnergy ? energyTextureId : textureID);
 	glBegin(GL_QUADS);
 	glTexCoord2f(0.0f, 0.0f); glVertex2i(-1 - geomW,           -1 - geomH);
 	glTexCoord2f(1.0f, 0.0f); glVertex2i(+1 + geomWidth-geomW, -1 - geomH);
@@ -76,12 +76,21 @@ void Canvas::resetTransform() {
 	zoomValue = 0;
 }
 
+void Canvas::toggleTexture() {
+	showEnergy = !showEnergy;
+}
+
 void Canvas::onImageChange() {
-	Image* image = imgManager.getCurrentImage();
-	const int imgW = image->getWidth();
-	const int imgH = image->getHeight();
-	updateImageGeometry(imgW, imgH);
 	resetTransform();
+	onImageSeamed();
+	showEnergy = false;
+}
+
+void Canvas::onImageSeamed() {
+	Image& image = imgManager.getActiveImage();
+	const int imgW = image.getWidth();
+	const int imgH = image.getHeight();
+	updateImageGeometry(imgW, imgH);
 	imageUpdated = true;
 }
 
@@ -92,13 +101,13 @@ void Canvas::updateCanvasSize(int _width, int _height) {
 
 	width = _width;
 	height = _height;
-	Image* image = imgManager.getCurrentImage();
-	if (!image || !image->isValid()) {
+	Image& image = imgManager.getActiveImage();
+	if (!image) {
 		return;
 	}
 
-	const int imgW = image->getWidth();
-	const int imgH = image->getHeight();
+	const int imgW = image.getWidth();
+	const int imgH = image.getHeight();
 	updateImageGeometry(imgW, imgH);
 }
 
@@ -116,28 +125,54 @@ void Canvas::updateImageGeometry(int imgW, int imgH) {
 }
 
 void Canvas::makeTexture() {
-	Image* image = imgManager.getCurrentImage();
-	if (!image || !image->isValid()) {
+	Image& image = imgManager.getActiveImage();
+	if (!image) {
 		return;
 	}
+	unsigned int tid[2] = {textureID, energyTextureId};
 	if (textureID != 0) {
-		glDeleteTextures(1, &textureID);
+		glDeleteTextures(2, tid);
 	}
-	glGenTextures(1, &textureID);
+	glGenTextures(2, tid);
+	textureID = tid[0];
+	energyTextureId = tid[1];
+
+	// Create RGB texture
 	glBindTexture(GL_TEXTURE_2D, textureID);
-	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+	glPixelStorei(GL_UNPACK_ALIGNMENT, sizeof(image.getData()[0]));
+	glPixelStorei(GL_UNPACK_ROW_LENGTH, image.getStride());
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glTexImage2D(
 		GL_TEXTURE_2D,
 		0, // level
 		GL_RGB,
-		image->getWidth(),
-		image->getHeight(),
+		image.getWidth(),
+		image.getHeight(),
 		0, // border
-		GL_RGB,
+		GL_RGBA,
 		GL_UNSIGNED_BYTE,
-		image->getData()
+		image.getData()
 	);
+
+	// Create energy texture
+	glBindTexture(GL_TEXTURE_2D, energyTextureId);
+	glPixelStorei(GL_UNPACK_ALIGNMENT, sizeof(image.getEnergy()[0]));
+	glPixelStorei(GL_UNPACK_ROW_LENGTH, image.getStride());
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexImage2D(
+		GL_TEXTURE_2D,
+		0, // level
+		GL_LUMINANCE,
+		image.getWidth(),
+		image.getHeight(),
+		0, // border
+		GL_LUMINANCE,
+		GL_FLOAT,
+		image.getEnergy()
+	);
+
+	// Unbind texture
 	glBindTexture(GL_TEXTURE_2D, 0);
 }

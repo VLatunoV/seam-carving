@@ -91,11 +91,12 @@ private:
 	ComponentGLFW glfw;
 	ComponentImGui imgui;
 
-	int imageWidth = 0; ///< current image's width.
+	int imageWidth = 0; ///< Current image's width.
 	int imageHeight = 0; ///< Current image's height.
 	int targetWidth = 0; ///< Final width after removing seams.
 	int targetHeight = 0; ///< Final height after removing seams.
 
 	// From ImageManagerObserver
 	virtual void onImageChange() override;
+	virtual void onImageSeamed() override;
 };

@@ -67,6 +67,10 @@ static void glfw_keyboardFunction(GLFWwindow* window, int key, int scancode, int
 		App* app = CallbackBridge::getInstance().getApp();
 		app->canvas.resetTransform();
 	}
+	if (key == GLFW_KEY_E && action == GLFW_PRESS) {
+		App* app = CallbackBridge::getInstance().getApp();
+		app->canvas.toggleTexture();
+	}
 }
 
 static void tooltip(const char* desc) {
@@ -256,12 +260,13 @@ void App::run() {
 			ImGui::Text("Drag and drop an image to load.");
 			ImGui::Text("Use middle mouse button to move and scroll to zoom.");
 			ImGui::Text("Press SPACE to reset.");
+			ImGui::Text("Press E to show image energy.");
 
 			ImGui::SeparatorText("Seam carving");
 			ImGui::Text("Target size");
 			tooltip("This is the final size after removing seams from the image.");
-			ImGui::SliderInt("Width", &targetWidth, 0, imageWidth);
-			ImGui::SliderInt("Height", &targetHeight, 0, imageHeight);
+			ImGui::SliderInt("Width", &targetWidth, bool(imageWidth), imageWidth);
+			ImGui::SliderInt("Height", &targetHeight, bool(imageHeight), imageHeight);
 			if (ImGui::Button("Carve")) {
 				imageManager.triggerSeam(targetWidth, targetHeight);
 			}
@@ -296,10 +301,13 @@ void App::run() {
 }
 
 void App::onImageChange() {
-	Image* currImage = imageManager.getCurrentImage();
-	imageWidth = currImage->getWidth();
-	imageHeight = currImage->getHeight();
+	Image& originalImage = imageManager.getOriginalImage();
+	imageWidth = originalImage.getWidth();
+	imageHeight = originalImage.getHeight();
+	targetWidth = imageWidth;
+	targetHeight = imageHeight;
+}
 
-	targetWidth = std::min(targetWidth, imageWidth);
-	targetHeight = std::min(targetHeight, imageHeight);
+void App::onImageSeamed() {
+	// Empty
 }

@@ -33,7 +33,7 @@ public:
 	/// Based on the mouse position, it will also translate the image so that
 	/// the zoom center is at the mouse position.
 	/// @param scroll The scroll amount. This is a number of scroll wheel ticks (only for scroll
-	///		wheels with stepped spin).
+	///	    wheels with stepped spin).
 	/// @param mouseX Mouse position when scrolling.
 	/// @param mouseY Mouse position when scrolling.
 	void zoom(int scroll, int mouseX, int mouseY);
@@ -41,12 +41,18 @@ public:
 	/// Reset the zoom and pan.
 	void resetTransform();
 
+	/// Switches between showing the RGB image and its energy.
+	void toggleTexture();
+
 	// From ImageManagerObserver
 	virtual void onImageChange() override;
+	virtual void onImageSeamed() override;
 
 private:
 	ImageManager& imgManager; ///< Image manager to get the image.
 	unsigned int textureID = 0; ///< OpenGL texture id.
+	unsigned int energyTextureId = 0; ///< Texture id for the energy view.
+	bool showEnergy = false; ///< If true, show the energy texture instead of the RGB image.
 	bool imageUpdated = false; ///< Set to true if the image has been updated. In this case we have to recreate the texture.
 
 	int width = 0; ///< Canvas width.

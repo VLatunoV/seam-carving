@@ -31,4 +31,5 @@ private:
 
 struct ImageManagerObserver {
 	virtual void onImageChange() = 0;
+	virtual void onImageSeamed() = 0;
 };

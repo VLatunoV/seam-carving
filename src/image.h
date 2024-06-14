@@ -4,13 +4,28 @@
 #include "error.h"
 #include "observer.h"
 
+template <bool>
+struct CarveHelper;
+
+struct Pixel {
+	uint8_t r;
+	uint8_t g;
+	uint8_t b;
+	uint8_t a;
+};
+
 class Image {
+	template<bool>
+	friend struct CarveHelper;
+
 public:
 	/// We shouldn't need to copy images around.
 	Image& operator=(const Image&) = delete;
 
 	/// Return true if the image is valid.
 	operator bool();
+
+	void copyFrom(Image& other);
 
 	/// Load an image given its path.
 	/// The image can be any of the supported types by FreeImage library. Called by the ImageManager
@@ -19,21 +34,40 @@ public:
 
 	int getWidth() const;
 	int getHeight() const;
-	const uint8_t* getData();
+	int getStride() const;
+	const Pixel* getData();
+	const float* getEnergy();
 
 	/// Return true if the image is valid, i.e. it has dimensions and data.
 	bool isValid() const;
 
+	/// Find horizontal seams with lowest energies connecting both vertical borders and removes them.
+	/// @param howMany Number of seams to remove.
+	void carveRows(int howMany);
+
+	/// Find vertical seams with lowest energies connecting both horizontal borders and removes them.
+	/// @param howMany Number of seams to remove.
+	void carveCols(int howMany);
+
 private:
-	int width = 0;
-	int height = 0;
-	/// Holds the image data as 8bit RGB values.
-	std::unique_ptr<uint8_t[]> data;
+	int width = 0; /// Width in pixels.
+	int height = 0; /// Height in pixels.
+	int stride = 0; /// Offset in pixels to the next row.
+	size_t capacity = 0; ///< Size of allocated arrays.
+	/// Holds the image data as 8bit RGBA values. Alpha is not used.
+	std::unique_ptr<Pixel[]> data;
 	/// Holds the pixel energies used to do seam carving.
 	std::unique_ptr<float[]> energy;
+	std::unique_ptr<float[]> dyn; ///< Dynamic table for computing the lowest energies.
+	std::unique_ptr<int8_t[]> prev; ///< Used to keep track the previous pixel for each pixel.
+	std::vector<int> seam; ///< Store the indices of the seam for each row or column.
 
 	/// Calculated the energies for the image.
 	void computeEnergies();
+
+	/// Allocates all memory.
+	/// @param newCap Capacity.
+	void allocMemory(size_t newCap);
 };
 
 class ImageManager
@@ -45,15 +79,27 @@ public:
 	/// @return True if it can be loaded.
 	bool accepts(const char* path);
 
+	/// Return the current image to use.
+	Image& getActiveImage();
+	/// Return the original image.
+	Image& getOriginalImage();
+
 	/// Loads the image from file.
 	void triggerLoad(const char* path);
-
-	/// Return the current image to use. Can be nullptr if it wasn't loaded yet.
-	Image* getCurrentImage();
 
 	void triggerSeam(int newWidth, int newHeight);
 
 private:
-	std::unique_ptr<Image> currentImage; ///< The image to show.
-	std::unique_ptr<Image> nextImage; ///< The image that we load or seam carve.
+	/// We always keep the original image. When we have to seam carve to a size lower than our current one, we can
+	/// reuse the current carved image and reduce it. If any of the dimensions is larger, we start again from the
+	/// original.
+	/// @note The order matters, so we will get different results if the user asks for different sizes, but that is
+	///	    not a problem).
+	/// @{
+	Image activeImage; ///< The image to show. Can be empty, in which case we show the original.
+	Image originalImage; ///< The image that we load.
+	/// @}
+
+	/// Set to true when we apply seam carving to the image. When true, we use the active image.
+	bool isSeamModified = false;
 };
