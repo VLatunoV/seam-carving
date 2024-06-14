@@ -1,4 +1,4 @@
-#include <assert.h>
+#include <chrono>
 
 #include "FreeImage.h"
 #include "image.h"
@@ -54,7 +54,7 @@ Image::operator bool() {
 }
 
 void Image::copyFrom(Image& other) {
-	const size_t numPixels = size_t(other.stride) * other.height;
+	const int numPixels = other.stride * other.height;
 	allocMemory(numPixels);
 
 	width = other.width;
@@ -62,8 +62,6 @@ void Image::copyFrom(Image& other) {
 	stride = other.stride;
 	memcpy(data.get(), other.data.get(), numPixels * sizeof(data[0]));
 	memcpy(energy.get(), other.energy.get(), numPixels * sizeof(energy[0]));
-	memcpy(dyn.get(), other.dyn.get(), numPixels * sizeof(dyn[0]));
-	memcpy(prev.get(), other.prev.get(), numPixels * sizeof(prev[0]));
 }
 
 Error Image::load(const char* path) {
@@ -90,13 +88,17 @@ Error Image::load(const char* path) {
 	stride = width;
 
 	const size_t numPixels = size_t(stride) * height;
+	if (numPixels > 0xffffffff) {
+		FreeImage_Unload(fib);
+		return Error("Image too large to load");
+	}
 	allocMemory(numPixels);
 
 	for (int row = 0; row < height; ++row) {
 		// FreeImage stores the bottom of the image first (upside-down)
 		RGBTRIPLE* src = reinterpret_cast<RGBTRIPLE*>(FreeImage_GetScanLine(fib, height - 1 - row));
-		Pixel* dst = &data[size_t(row) * width];
-		Pixel* last = &data[size_t(row+1) * width];
+		Pixel* dst = &data[row * width];
+		Pixel* last = &data[(row+1) * width];
 		for (; dst != last; ++dst, ++src) {
 			static_assert(sizeof(dst->r) == sizeof(src->rgbtRed));
 			dst->r = uint8_t(src->rgbtRed);
@@ -135,136 +137,177 @@ bool Image::isValid() const {
 }
 
 /// Helper struct that implements the seam carving algorithm. It uses a template argument to determine
-/// if it should carve (remove) rows or columns.
+/// if it should carve (remove) rows or columns. We think of removing only columns, and with appropriate
+/// dimension switch, we can do rows too. The virtual dimensions are set in the constructor.
 /// @tparam doCols If true, it removes columns, otherwise it removes rows.
 template <bool doCols>
 struct CarveHelper {
 	Image& image; ///< Reference to the image to carve.
+	const int& rows; ///< Virtual rows.
+	int& cols; ///< Virtual columns.
+	/// Number of pixels to the next row of the index map. It is the number of columns of the image, but we can't use
+	/// them directly, since they will change after each seam.
+	const int idxStride = 0;
+	/// Stores the offset of each pixel in the image. When removing a seam, remove it from this map and do
+	/// changes only here.
+	std::vector<int> idxMap;
+	std::vector<float> dyn; ///< Dynamic table for computing the lowest energies.
+	std::vector<int8_t> prev; ///< Keeps track of the pixel from which we got the lowest energy.
+	std::vector<int> seam; ///< Stores the indices of the seam for each row or column.
 
-	explicit CarveHelper(Image& _image): image(_image) {}
+	explicit CarveHelper(Image& _image)
+		: image(_image)
+		, rows(doCols ? _image.height : _image.width)
+		, cols(doCols ? _image.width : _image.height)
+	{
+		const_cast<int&>(idxStride) = cols;
+	}
 
 	/// Removes @p howMany seams from the image with the lowest energy.
 	void carve(int howMany) {
 		if (howMany == 0) return;
 
-		const int& rows = doCols ? image.height : image.width;
-		const int& cols = doCols ? image.width : image.height;
-		const int nextRow = doCols ? image.stride : 1;
-		const int nextCol = doCols ? 1 : image.stride;
+		const int numPixels = image.stride * image.height;
+		dyn.resize(numPixels);
+		prev.resize(numPixels);
+		memset(dyn.data(), 0x7f, numPixels * sizeof(dyn[0]));
+		memset(prev.data(), 0, numPixels * sizeof(prev[0]));
 
-		const size_t numPixels = size_t(image.stride) * image.height;
-		memset(image.dyn.get(), 0x7f, numPixels * sizeof(image.dyn[0]));
-		memset(image.prev.get(), 0, numPixels * sizeof(image.prev[0]));
+		idxMap.resize(cols * rows);
+		for (int r = 0; r < rows; ++r) {
+			for (int c = 0; c < cols; ++c) {
+				getIdx(r, c) = at(r, c);
+			}
+		}
+		seam.resize(rows);
 
 		// First pass. Compute the full dynamic table.
 		for (int c = 0; c < cols; ++c) {
 			const int offset = at(0, c);
-			image.dyn[offset] = image.energy[offset];
+			dyn[offset] = image.energy[offset];
 		}
 		for (int r = 1; r < rows; ++r) {
+			int offset = at(r, 0);
 			computePixel(r, 0, 0);
 			computePixel(r, 0, 1);
-			image.dyn[at(r, 0)] += image.energy[at(r, 0)];
+			dyn[offset] += image.energy[offset];
 			for (int c=1, cEnd=cols-1; c<cEnd; ++c) {
+				offset = at(r, c);
 				computePixel(r, c, 0);
 				computePixel(r, c,-1);
 				computePixel(r, c, 1);
-				image.dyn[at(r, c)] += image.energy[at(r, c)];
+				dyn[offset] += image.energy[offset];
 			}
+			offset = at(r, cols-1);
 			computePixel(r, cols-1, 0);
 			computePixel(r, cols-1,-1);
-			image.dyn[at(r, cols-1)] += image.energy[at(r, cols-1)];
+			dyn[offset] += image.energy[offset];
 		}
 
 		// Now that we have the dynamic table, we can find seams.
-		image.seam.resize(rows);
 		while (howMany) {
 			--howMany;
 
 			// Find the start of the optimal seam
-			int minSeam = 0;
-			for (int c = 1; c < cols; ++c) {
-				if (image.dyn[at(rows-1, minSeam)] > image.dyn[at(rows-1, c)]) {
+			int minSeam = cols-1;
+			for (int c = cols-2; c >= 0; --c) {
+				if (dyn[getIdx(rows-1, minSeam)] > dyn[getIdx(rows-1, c)]) {
 					minSeam = c;
 				}
 			}
 
 			// Find all pixels of the seam
-			for (int i = rows-1; i >= 0; --i) {
-				image.seam[i] = minSeam;
-				assert(minSeam >= 0 && minSeam < cols);
-				minSeam += image.prev[at(i, minSeam)];
+			for (int r = rows-1; r >= 0; --r) {
+				seam[r] = minSeam;
+				minSeam += prev[getIdx(r, minSeam)];
 			}
 
 			// Remove the seam
 			for (int r = 0; r < rows; ++r) {
-				for (int c = image.seam[r]+1; c < cols; ++c) {
-					const size_t dst = at(r, c-1);
-					const size_t src = at(r, c);
-					image.data[dst] = image.data[src];
-					image.energy[dst] = image.energy[src];
-					image.dyn[dst] = image.dyn[src];
-					image.prev[dst] = image.prev[src];
+				for (int c = seam[r]+1; c < cols; ++c) {
+					const int offset = r*idxStride + c;
+					idxMap[offset - 1] = idxMap[offset];
 				}
 			}
 
-			if constexpr (doCols) {
-				--image.width;
-			} else {
-				--image.height;
-			}
+			--cols;
 
 			// If we have to remove more seams, update the dynamic table
 			if (howMany) {
 				for (int r = 1; r < rows; ++r) {
-					for (int c = std::max(0, image.seam[r]-r), cEnd = std::min(cols, image.seam[r]+r+1); c < cEnd; ++c) {
-						image.dyn[at(r, c)] = 1e38f;
+					for (int c = std::max(0, seam[r]-r), cEnd = std::min(cols, seam[r]+r+1); c < cEnd; ++c) {
+						const int offset = getIdx(r, c);
+						dyn[offset] = 1e38f;
 						computePixel(r, c, 0);
 						if (c > 0) computePixel(r, c, -1);
 						if (c+1 < cols) computePixel(r, c, 1);
-						image.dyn[at(r, c)] += image.energy[at(r, c)];
+						dyn[offset] += image.energy[offset];
 					}
 				}
 			}
 		}
+
+		// After all seams are removed, compact the final image
+		for (int r = 0; r < rows; ++r) {
+			const int offset = doCols ? 1 : image.stride;
+			int dst = at(r, 0);
+			for (int c = 0; c < cols; ++c, dst += offset) {
+				const int src = getIdx(r, c);
+				if (dst == src) continue;
+				image.data[dst] = image.data[src];
+				image.energy[dst] = image.energy[src];
+			}
+		}
 	}
 
-	size_t at(const int& r, const int& c) {
-		const size_t idx = doCols
-			? r*image.stride + c
+	int at(const int& r, const int& c) {
+		return doCols
+			? c + r*image.stride
 			: r + c*image.stride;
-		assert(idx >= 0 && idx < size_t(image.stride) * image.height);
-		return idx;
 	}
 
-	void computePixel(const int& r, const int& c, const int& prev) {
-		const size_t currOffset = at(r, c);
-		const size_t prevOffset = at(r-1, c+prev);
-		if (image.dyn[currOffset] > image.dyn[prevOffset]) {
-			image.dyn[currOffset] = image.dyn[prevOffset];
-			image.prev[currOffset] = prev;
+	int& getIdx(const int& r, const int& c) {
+		return idxMap[r*idxStride + c];
+	}
+
+	void computePixel(const int& r, const int& c, const int& _prev) {
+		const int currOffset = getIdx(r, c);
+		const int prevOffset = getIdx(r-1, c+_prev);
+		if (dyn[currOffset] > dyn[prevOffset]) {
+			dyn[currOffset] = dyn[prevOffset];
+			prev[currOffset] = _prev;
 		}
 	}
 };
 
 void Image::carveRows(int howMany) {
+	std::chrono::high_resolution_clock clock;
+	std::chrono::time_point startTime = clock.now();
 	CarveHelper<false> helper(*this);
 	helper.carve(howMany);
+	auto deltaTime = clock.now() - startTime;
+	printf("Carve %d rows: %.03fms\n", howMany, 1e-6f * deltaTime.count());
 }
 
 void Image::carveCols(int howMany) {
+	std::chrono::high_resolution_clock clock;
+	std::chrono::time_point startTime = clock.now();
 	CarveHelper<true> helper(*this);
 	helper.carve(howMany);
+	auto deltaTime = clock.now() - startTime;
+	printf("Carve %d cols: %.03fms\n", howMany, 1e-6f * deltaTime.count());
 }
 
 void Image::computeEnergies() {
 	if (!isValid()) return;
+	const int memSize = stride * height;
+	std::unique_ptr<float[]> luma = std::make_unique<float[]>(memSize);
 
-	const size_t memSize = size_t(stride) * height;
-	float* luma = dyn.get(); // Reuse the dynamic array to compute luma values.
+	std::chrono::high_resolution_clock clock;
+	std::chrono::time_point startTime = clock.now();
 
 	const float k = 1.0f / 255.0f;
-	for (size_t idx=0; idx<memSize; ++idx) {
+	for (int idx=0; idx<memSize; ++idx) {
 		luma[idx] = computeLuma(
 			k * float(data[idx].r),
 			k * float(data[idx].g),
@@ -314,15 +357,16 @@ void Image::computeEnergies() {
 	for (int i = 0; i < memSize; ++i) {
 		energy[i] *= maxE;
 	}
+
+	auto deltaTime = clock.now() - startTime;
+	printf("Computed energies: %.03fms\n", 1e-6f * deltaTime.count());
 }
 
-void Image::allocMemory(size_t newCap) {
+void Image::allocMemory(int newCap) {
 	if (newCap <= capacity) return;
 
 	data = std::make_unique<Pixel[]>(newCap);
 	energy = std::make_unique<float[]>(newCap);
-	dyn = std::make_unique<float[]>(newCap);
-	prev = std::make_unique<int8_t[]>(newCap);
 	capacity = newCap;
 }
 

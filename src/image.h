@@ -53,21 +53,18 @@ private:
 	int width = 0; /// Width in pixels.
 	int height = 0; /// Height in pixels.
 	int stride = 0; /// Offset in pixels to the next row.
-	size_t capacity = 0; ///< Size of allocated arrays.
+	int capacity = 0; ///< Size of allocated arrays.
 	/// Holds the image data as 8bit RGBA values. Alpha is not used.
 	std::unique_ptr<Pixel[]> data;
 	/// Holds the pixel energies used to do seam carving.
 	std::unique_ptr<float[]> energy;
-	std::unique_ptr<float[]> dyn; ///< Dynamic table for computing the lowest energies.
-	std::unique_ptr<int8_t[]> prev; ///< Used to keep track the previous pixel for each pixel.
-	std::vector<int> seam; ///< Store the indices of the seam for each row or column.
 
 	/// Calculated the energies for the image.
 	void computeEnergies();
 
 	/// Allocates all memory.
 	/// @param newCap Capacity.
-	void allocMemory(size_t newCap);
+	void allocMemory(int newCap);
 };
 
 class ImageManager
