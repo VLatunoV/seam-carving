@@ -138,8 +138,9 @@ void Canvas::makeTexture() {
 	energyTextureId = tid[1];
 
 	// Create RGB texture
+	static_assert(sizeof(image.getData()[0]) == 3);
 	glBindTexture(GL_TEXTURE_2D, textureID);
-	glPixelStorei(GL_UNPACK_ALIGNMENT, sizeof(image.getData()[0]));
+	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 	glPixelStorei(GL_UNPACK_ROW_LENGTH, image.getStride());
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -150,14 +151,15 @@ void Canvas::makeTexture() {
 		image.getWidth(),
 		image.getHeight(),
 		0, // border
-		GL_RGBA,
+		GL_RGB,
 		GL_UNSIGNED_BYTE,
 		image.getData()
 	);
 
 	// Create energy texture
+	static_assert(sizeof(image.getEnergy()[0]) == 4);
 	glBindTexture(GL_TEXTURE_2D, energyTextureId);
-	glPixelStorei(GL_UNPACK_ALIGNMENT, sizeof(image.getEnergy()[0]));
+	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 	glPixelStorei(GL_UNPACK_ROW_LENGTH, image.getStride());
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);

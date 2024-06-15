@@ -1,5 +1,6 @@
 #include <chrono>
 
+#include "app.h"
 #include "FreeImage.h"
 #include "image.h"
 
@@ -104,9 +105,9 @@ Error Image::load(const char* path) {
 
 	for (int row = 0; row < height; ++row) {
 		// FreeImage stores the bottom of the image first (upside-down)
-		RGBTRIPLE* src = reinterpret_cast<RGBTRIPLE*>(FreeImage_GetScanLine(fib, height - 1 - row));
-		Pixel* dst = &data[row * width];
-		Pixel* last = &data[(row+1) * width];
+		const RGBTRIPLE* src = reinterpret_cast<RGBTRIPLE*>(FreeImage_GetScanLine(fib, height - 1 - row));
+		Pixel* dst = &data[row * stride];
+		Pixel* last = &data[(row+1) * stride];
 		for (; dst != last; ++dst, ++src) {
 			static_assert(sizeof(dst->r) == sizeof(src->rgbtRed));
 			dst->r = uint8_t(src->rgbtRed);
@@ -117,6 +118,35 @@ Error Image::load(const char* path) {
 
 	FreeImage_Unload(fib);
 	computeEnergies();
+	return Error();
+}
+
+Error Image::save(const char* path) {
+	FREE_IMAGE_FORMAT imgFormat = getImageFormat(path);
+	if (imgFormat == FIF_UNKNOWN) {
+		return Error("Unsupported image format \"%s\"", path);
+	}
+	FIBITMAP* fib = FreeImage_Allocate(width, height, 24/*bits per pixel*/);
+	if (!fib) {
+		return Error("Failed to allocate image memory");
+	}
+
+	for (int row = 0; row < height; ++row) {
+		// FreeImage stores the bottom of the image first (upside-down)
+		RGBTRIPLE* dst = reinterpret_cast<RGBTRIPLE*>(FreeImage_GetScanLine(fib, height - 1 - row));
+		const Pixel* src = &data[row * stride];
+		const Pixel* last = &data[row * stride + width];
+		for (; src != last; ++dst, ++src) {
+			static_assert(sizeof(dst->rgbtRed) == sizeof(src->r));
+			dst->rgbtRed = BYTE(src->r);
+			dst->rgbtGreen = BYTE(src->g);
+			dst->rgbtBlue = BYTE(src->b);
+		}
+	}
+
+	if (!FreeImage_Save(imgFormat, fib, path)) {
+		return Error("Failed to save image");
+	}
 	return Error();
 }
 
@@ -438,24 +468,38 @@ void ImageManager::triggerLoad(const char* path) {
 		return;
 	}
 	isSeamModified = false;
+	saveHandler.setImageLoaded(path);
 
 	notify(&ImageManagerObserver::onImageChange);
 }
 
-void ImageManager::triggerSeam(int newWidth, int newHeight) {
+void ImageManager::triggerSave() {
+	Image& image = getActiveImage();
+	if (!image) return;
+
+	std::string savePath;
+	if (saveHandler.getSavePath(savePath)) {
+		Error err = getActiveImage().save(savePath.c_str());
+		if (err) {
+			err.print();
+		}
+	}
+}
+
+void ImageManager::triggerSeam(int targetWidth, int targetHeight) {
 	Image* img = &getActiveImage();
-	if (img->getWidth() == newWidth && img->getHeight() == newHeight) {
+	if (img->getWidth() == targetWidth && img->getHeight() == targetHeight) {
 		return;
 	}
 
-	if (!isSeamModified || (img->getWidth() < newWidth || img->getHeight() < newHeight)) {
+	if (!isSeamModified || (img->getWidth() < targetWidth || img->getHeight() < targetHeight)) {
 		activeImage.copyFrom(originalImage);
 		isSeamModified = true;
 		img = &activeImage;
 	}
 
-	const int diffWidth = img->getWidth() - newWidth;
-	const int diffHeight = img->getHeight() - newHeight;
+	const int diffWidth = img->getWidth() - targetWidth;
+	const int diffHeight = img->getHeight() - targetHeight;
 	img->carveCols(diffWidth);
 	img->carveRows(diffHeight);
 

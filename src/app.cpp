@@ -95,7 +95,7 @@ bool ComponentGLFW::initialize() {
 		return false;
 
 	// Create window with graphics context
-	window = glfwCreateWindow(1280, 720, "Dear ImGui GLFW+OpenGL3 example", nullptr, nullptr);
+	window = glfwCreateWindow(1280, 720, "Seam carving toy", nullptr, nullptr);
 	if (window == nullptr)
 		return false;
 	glfwMakeContextCurrent(window);
@@ -223,7 +223,6 @@ void App::run() {
 
 	// Do some setup
 	float clearColor[3] = {0.45f, 0.55f, 0.60f};
-	bool show_demo_window = false;
 	float emaDeltaTime = 1.0f / 60.0f;
 	const float emaDecay = 0.95f;
 	int displayWidth = 0;
@@ -249,12 +248,11 @@ void App::run() {
 			ImGui_ImplGlfw_NewFrame();
 			ImGui::NewFrame();
 
-			// 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
-			if (show_demo_window)
-				ImGui::ShowDemoWindow(&show_demo_window);
-
-			ImGui::Begin("Seam carving", nullptr, ImGuiWindowFlags_NoResize);
+			ImGui::Begin("##", nullptr, ImGuiWindowFlags_NoResize);
 			ImGui::SetWindowPos({0, 0}, ImGuiCond_Once);
+			const ImVec2 vMin = ImGui::GetWindowContentRegionMin();
+			const ImVec2 vMax = ImGui::GetWindowContentRegionMax();
+			const float buttonWidth = (vMax.x - vMin.x - ImGui::GetStyle().ItemSpacing.x) / 2;
 
 			ImGui::SeparatorText("Controls");
 			ImGui::Text("Drag and drop an image to load.");
@@ -267,7 +265,7 @@ void App::run() {
 			tooltip("This is the final size after removing seams from the image.");
 			ImGui::SliderInt("Width", &targetWidth, bool(imageWidth), imageWidth);
 			ImGui::SliderInt("Height", &targetHeight, bool(imageHeight), imageHeight);
-			if (ImGui::Button("Carve")) {
+			if (ImGui::Button("Carve", ImVec2(vMax.x - vMin.x, 0.0f))) {
 				imageManager.triggerSeam(targetWidth, targetHeight);
 			}
 
@@ -280,9 +278,17 @@ void App::run() {
 			ImGui::Text("Window size: %d x %d", displayWidth, displayHeight);
 			ImGui::Text("Image size: %d x %d", imageWidth, imageHeight);
 			ImGui::Text("Zoom level: %.03f", canvas.calcScale(canvas.zoomValue));
-			ImGui::Checkbox("Demo window", &show_demo_window);
-			if (ImGui::Button("Pop")) {
+
+			if (ImGui::Button("Pop", ImVec2(buttonWidth, 0.0f))) {
 				ImGui::SetWindowPos({0, 0});
+			}
+			if (ImGui::BeginItemTooltip()) {
+				ImGui::TextUnformatted("Return the window to its initial position");
+				ImGui::EndTooltip();
+			}
+			ImGui::SameLine();
+			if (ImGui::Button("Save", ImVec2(buttonWidth, 0.0f))) {
+				imageManager.triggerSave();
 			}
 			ImGui::End();
 

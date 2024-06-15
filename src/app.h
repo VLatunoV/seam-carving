@@ -72,13 +72,13 @@ struct MouseState {
 	bool mmbPressed = false; ///< Middle mouse buttom pressed?
 };
 
+/// The application.
 class App
 	: public ImageManagerObserver
 {
 public:
 	ImageManager imageManager;
 	Canvas canvas;
-
 	MouseState mouse;
 
 	App(); ///< Initializes the app.
